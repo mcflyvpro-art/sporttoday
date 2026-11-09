@@ -1157,7 +1157,15 @@
     const s = findS(sid);
     if (!s) return;
     const { steps, blocks } = buildSteps(s, state.settings);
-    if (!steps.some(x => x.kind === 'work')) { toast('x', true); return; }
+    if (!steps.some(x => x.kind === 'work')) {
+      // Séance vide : au lieu d'une croix (qui laissait passer le tap vers le bouton +),
+      // on ouvre la séance pour y ajouter un exercice.
+      const e = baseE();
+      if (e.v !== 'edit' || e.sid !== s.id) push({ v: 'edit', sid: s.id });
+      else if (s.blocks.length) ACT.addEx({ dataset: { id: s.blocks[0].id } });
+      else ACT.addBlock();
+      return;
+    }
     Snd.unlock();
     const now = Date.now();
     Object.assign(P, {
