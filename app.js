@@ -10,6 +10,9 @@
   const WEEK = [1, 2, 3, 4, 5, 6, 0]; // affichage lundi → dimanche
   const DOW = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
   const MON = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
+  const MONTHS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+  const DOW_S = ['dim.', 'lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.'];
+  const DONE_C = '#3DDC97';
   const COLORS = ['#FF6B2C', '#8C7BFF', '#17C3A2', '#FFB020', '#FF4F9A', '#A3D63C', '#3FA2FF', '#C9CED6'];
   const S_ICONS = ['dumbbell', 'lotus', 'flame', 'zap', 'heart', 'activity', 'wind', 'mountain'];
   const SUGGEST = [
@@ -59,6 +62,7 @@
     upload: '<path d="M12 15V4M7 9l5-5 5 5M4 20h16"/>',
     reset: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/>',
     flag: '<path d="M5 21V4M5 4h12l-2.5 4.5L17 13H5"/>',
+    calendar: '<rect x="3" y="5" width="18" height="16" rx="2.5"/><path d="M3 10h18M8 3v4M16 3v4"/>',
     // icônes de séance
     dumbbell: '<path d="M6.5 6.5v11M17.5 6.5v11M3.5 9.5v5M20.5 9.5v5M6.5 12h11"/>',
     lotus: '<path d="M12 20c-3.6 0-7.2-1.7-9-5 2.7-.9 5.6-.3 9 2.5 3.4-2.8 6.3-3.4 9-2.5-1.8 3.3-5.4 5-9 5Z"/><path d="M12 17.5c-2-1.9-3.2-4.5-3-7.8.9-1.4 1.9-2.6 3-3.7 1.1 1.1 2.1 2.3 3 3.7.2 3.3-1 5.9-3 7.8Z"/>',
@@ -83,6 +87,8 @@
   const sn = s => (s.name || '').trim() || 'Séance';
   const dateKey = (d = new Date()) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
   const clone = o => JSON.parse(JSON.stringify(o));
+  const isKey = k => typeof k === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(k);
+  const parseKey = k => { const [y, m, d] = k.split('-').map(Number); return new Date(y, m - 1, d); };
 
   function fmtDur(s) {
     s = Math.round(s);
@@ -189,7 +195,8 @@
       v: 1,
       sessions: Array.isArray(d.sessions) ? d.sessions : [],
       settings: { ...DEFAULT_SETTINGS, ...(d.settings || {}) },
-      log: Array.isArray(d.log) ? d.log.filter(l => l && l.d) : [],
+      log: [],
+      start: '',
     };
     out.sessions = out.sessions.filter(s => s && typeof s === 'object').map(s => ({
       id: String(s.id || uid()),
@@ -216,6 +223,25 @@
         }),
       })),
     }));
+    // Historique : chaque entrée garde son nom / sa couleur / son icône,
+    // elle reste donc intacte si la séance est modifiée ou supprimée.
+    out.log = (Array.isArray(d.log) ? d.log : []).filter(l => l && isKey(l.d)).map(l => {
+      const s = out.sessions.find(x => x.id === l.id);
+      return {
+        k: String(l.k || uid()),
+        id: String(l.id || ''),
+        d: l.d,
+        t: Math.max(0, Math.round(+l.t) || 0),
+        n: String(l.n ?? (s ? sn(s) : 'Séance')),
+        c: /^#[0-9a-f]{6}$/i.test(l.c) ? l.c : (s ? s.color : DONE_C),
+        ic: S_ICONS.includes(l.ic) ? l.ic : (s ? s.icon : 'activity'),
+        m: !!l.m,
+        at: +l.at || 0,
+      };
+    });
+    // Début du suivi : les croix ne s'affichent qu'à partir de ce jour.
+    const firstLog = out.log.reduce((a, l) => (l.d < a ? l.d : a), dateKey());
+    out.start = isKey(d.start) && d.start <= firstLog ? d.start : firstLog;
     return out;
   }
 
@@ -227,7 +253,7 @@
         if (d && Array.isArray(d.sessions)) return normalize(d);
       }
     } catch (e) { /* stockage indisponible */ }
-    return { v: 1, sessions: defaultSessions(), settings: { ...DEFAULT_SETTINGS }, log: [] };
+    return { v: 1, sessions: defaultSessions(), settings: { ...DEFAULT_SETTINGS }, log: [], start: dateKey() };
   }
   let state = load();
 
@@ -440,7 +466,8 @@
       $view.innerHTML = editorHTML(findS(base.sid));
       const t = topE();
       if (t.sheet === 'ex') { const el = $view.querySelector(`.item[data-id="${t.id}"]`); if (el) el.classList.add('hl'); }
-    } else $view.innerHTML = homeHTML();
+    } else if (base.v === 'hist') $view.innerHTML = histHTML(base);
+    else $view.innerHTML = homeHTML();
   }
 
   /* ---------- Accueil ---------- */
@@ -451,7 +478,10 @@
     return `<main class="home wrap">
       <header class="top">
         <p class="date"><b>${DOW[dow]}</b> ${now.getDate()} ${MON[now.getMonth()]}</p>
-        <button class="ib" data-a="settings" aria-label="Réglages">${ic('sliders')}</button>
+        <span class="top-acts">
+          <button class="ib" data-a="hist" aria-label="Suivi">${ic('calendar')}</button>
+          <button class="ib" data-a="settings" aria-label="Réglages">${ic('sliders')}</button>
+        </span>
       </header>
       ${weekHTML(now)}
       ${hero ? heroHTML(hero) : ''}
@@ -462,23 +492,28 @@
     </main>`;
   }
 
+  const isMiss = (key, today, has) => !has && key < today && key >= state.start;
+  const markHTML = (kind, cls = '') => `<span class="mark ${kind} ${cls}">${ic(kind === 'ok' ? 'check' : kind === 'ko' ? 'x' : 'calendar')}</span>`;
+
   function weekHTML(now) {
     const today = dateKey(now);
+    const done = new Set(state.log.map(l => l.d));
     const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - ((now.getDay() + 6) % 7));
     let html = '';
     for (let k = 0; k < 7; k++) {
       const d = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + k);
-      const key = dateKey(d), gd = d.getDay();
-      const doneIds = state.log.filter(l => l.d === key).map(l => l.id);
-      const ids = [...new Set([...state.sessions.filter(s => s.days.includes(gd)).map(s => s.id), ...doneIds])];
-      const dots = ids.map(id => {
-        const s = findS(id);
-        return `<i class="${doneIds.includes(id) ? 'on' : ''}" style="--c:${s ? s.color : 'var(--muted)'}"></i>`;
-      }).join('') || '<i class="none"></i>';
+      const key = dateKey(d), gd = d.getDay(), has = done.has(key);
+      let mark;
+      if (has) mark = markHTML('ok');
+      else if (isMiss(key, today, has)) mark = markHTML('ko');
+      else {
+        const planned = state.sessions.filter(s => s.days.includes(gd));
+        mark = `<span class="dots">${planned.map(s => `<i style="--c:${s.color}"></i>`).join('') || '<i class="none"></i>'}</span>`;
+      }
       const cls = key === today ? 'today' : key < today ? 'past' : '';
-      html += `<div class="day ${cls}"><span class="dl">${DAY1[gd]}</span><span class="dots">${dots}</span><span class="dn">${d.getDate()}</span></div>`;
+      html += `<span class="day ${cls}"><span class="dl">${DAY1[gd]}</span>${mark}<span class="dn">${d.getDate()}</span></span>`;
     }
-    return `<section class="week" aria-label="Semaine">${html}</section>`;
+    return `<button class="week" data-a="hist" aria-label="Suivi">${html}</button>`;
   }
 
   function heroHTML(s) {
@@ -508,6 +543,65 @@
       </button>
       <button class="row-play" data-a="play" data-id="${s.id}" aria-label="Démarrer">${ic('play')}</button>
     </div>`;
+  }
+
+  /* ---------- Suivi ---------- */
+  const fmtHM = sec => { const m = Math.round(sec / 60), h = Math.floor(m / 60); return h ? `${h}h${pad(m % 60)}` : `${m} min`; };
+  function streak(done) {
+    const d = new Date();
+    if (!done.has(dateKey(d))) d.setDate(d.getDate() - 1);
+    let n = 0;
+    while (done.has(dateKey(d))) { n++; d.setDate(d.getDate() - 1); }
+    return n;
+  }
+  const logRow = (l, withDate) => {
+    const d = parseKey(l.d);
+    return `${withDate ? `<span class="lg-d">${DOW_S[d.getDay()]} ${d.getDate()}</span>` : ''}<span class="badge">${ic(l.ic)}</span><span class="lg-n">${esc(l.n)}</span><span class="lg-t">${l.t ? fmtHM(l.t) : ''}</span>`;
+  };
+
+  function histHTML(e) {
+    const now = new Date(), today = dateKey(now);
+    const { y, mo } = e;
+    const done = new Set(state.log.map(l => l.d));
+    const prefix = `${y}-${pad(mo + 1)}-`;
+    const nDays = new Date(y, mo + 1, 0).getDate();
+    const offset = (new Date(y, mo, 1).getDay() + 6) % 7;
+    let cells = WEEK.map(d => `<span class="cal-h">${DAY1[d]}</span>`).join('') + '<span></span>'.repeat(offset);
+    let okN = 0, koN = 0;
+    for (let n = 1; n <= nDays; n++) {
+      const key = prefix + pad(n), has = done.has(key);
+      let cls = '', mark = '';
+      if (has) { cls = 'ok'; mark = ic('check'); okN++; }
+      else if (isMiss(key, today, has)) { cls = 'ko'; mark = ic('x'); koN++; }
+      else if (key > today) cls = 'fut';
+      if (key === today) cls += ' today';
+      cells += key > today
+        ? `<span class="cd ${cls}"><b>${n}</b></span>`
+        : `<button class="cd ${cls}" data-a="daySheet" data-id="${key}"><b>${n}</b>${mark}</button>`;
+    }
+    const entries = state.log.filter(l => l.d.startsWith(prefix))
+      .sort((a, b) => b.d.localeCompare(a.d) || b.at - a.at);
+    const secs = entries.reduce((a, l) => a + l.t, 0);
+    const isCur = y === now.getFullYear() && mo === now.getMonth();
+    return `<main class="hist wrap">
+      <header class="ed-top">
+        <button class="ib" data-a="back" aria-label="Retour">${ic('chevL')}</button>
+        <span class="ed-title"><span class="badge" style="--c:var(--done)">${ic('calendar')}</span><h1>Suivi</h1></span>
+        <span class="streak" aria-label="Série">${ic('flame')}${streak(done)}</span>
+      </header>
+      <div class="month-nav">
+        <button class="ib" data-a="month" data-d="-1" aria-label="Mois précédent">${ic('chevL')}</button>
+        <h2>${MONTHS[mo]} <span>${y}</span></h2>
+        <button class="ib" data-a="month" data-d="1" aria-label="Mois suivant"${isCur ? ' disabled' : ''}>${ic('chevR')}</button>
+      </div>
+      <div class="stats">
+        <div class="stat st-ok"><span class="stat-v">${ic('check')}${okN}</span><span class="stat-l">faits</span></div>
+        <div class="stat st-ko"><span class="stat-v">${ic('x')}${koN}</span><span class="stat-l">ratés</span></div>
+        <div class="stat"><span class="stat-v">${ic('clock')}${fmtHM(secs)}</span><span class="stat-l">temps</span></div>
+      </div>
+      <div class="cal">${cells}</div>
+      ${entries.length ? `<ul class="log">${entries.map(l => `<li><button class="lg" data-a="daySheet" data-id="${l.d}" style="--c:${l.c}">${logRow(l, true)}</button></li>`).join('')}</ul>` : ''}
+    </main>`;
   }
 
   /* ---------- Éditeur ---------- */
@@ -557,6 +651,7 @@
     const t = topE();
     if (!t || !t.sheet) return null;
     if (t.sheet === 'settings') return { t, obj: state.settings };
+    if (t.sheet === 'day') return { t, obj: {} };
     const s = findS(t.sid);
     if (!s) return null;
     if (t.sheet === 'session') return { t, s, obj: s };
@@ -661,6 +756,16 @@
           ${okHTML()}
         </div>`;
     }
+    if (t.sheet === 'day') {
+      const key = t.id, d = parseKey(key), today = dateKey();
+      const list = state.log.filter(l => l.d === key).sort((a, b) => a.at - b.at);
+      const kind = list.length ? 'ok' : isMiss(key, today, false) ? 'ko' : 'none';
+      const opts = [...state.sessions.map(s => ({ id: s.id, n: sn(s), c: s.color, ic: s.icon })), { id: '', n: 'Sport', c: DONE_C, ic: 'activity' }];
+      return `<div class="day-head">${markHTML(kind, 'big')}<h2>${DOW[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]}</h2></div>
+        ${list.length ? `<ul class="log">${list.map(l => `<li class="lg" style="--c:${l.c}">${logRow(l, false)}<button class="ib danger" data-a="delLog" data-id="${l.k}" aria-label="Supprimer">${ic('trash')}</button></li>`).join('')}</ul>` : ''}
+        ${key <= today ? `<div class="add-log">${opts.map(o => `<button data-a="addLog" data-id="${o.id}" style="--c:${o.c}"><span class="badge">${ic(o.ic)}</span><span class="al-n">${esc(o.n)}</span>${ic('plus')}</button>`).join('')}</div>` : ''}
+        <div class="acts">${okHTML()}</div>`;
+    }
     if (t.sheet === 'settings') {
       const st = state.settings;
       return `<div class="fields">
@@ -695,7 +800,7 @@
     const c = ctx();
     if (!c) { back(); return; }
     const key = t.sheet + ':' + (t.id || '');
-    const color = c.s ? c.s.color : (state.sessions[0] ? state.sessions[0].color : COLORS[0]);
+    const color = c.s ? c.s.color : t.sheet === 'day' ? DONE_C : (state.sessions[0] ? state.sessions[0].color : COLORS[0]);
     if (key !== sheetKey) {
       clearTimeout(sheetT);
       $sheet.classList.remove('open');
@@ -785,6 +890,27 @@
     open: b => push({ v: 'edit', sid: b.dataset.id }),
     play: b => startSession(b.dataset.id),
     settings: () => push({ sheet: 'settings', id: 'settings' }),
+    hist: () => { const n = new Date(); push({ v: 'hist', y: n.getFullYear(), mo: n.getMonth() }); },
+    month: b => {
+      const e = baseE(), n = new Date();
+      let mo = e.mo + (+b.dataset.d), y = e.y;
+      if (mo < 0) { mo = 11; y--; } else if (mo > 11) { mo = 0; y++; }
+      if (y > n.getFullYear() || (y === n.getFullYear() && mo > n.getMonth())) return;
+      e.y = y; e.mo = mo;
+      renderView();
+    },
+    daySheet: b => push({ sheet: 'day', id: b.dataset.id }),
+    addLog: b => {
+      const key = topE().id, s = findS(b.dataset.id);
+      if (!isKey(key) || key > dateKey()) return;
+      state.log.push({ k: uid(), id: s ? s.id : '', d: key, t: 0, n: s ? sn(s) : 'Sport', c: s ? s.color : DONE_C, ic: s ? s.icon : 'activity', m: true, at: Date.now() });
+      flush(); renderView(); refreshSheet(); toast('check');
+    },
+    delLog: btn => {
+      if (!armed(btn)) return;
+      state.log = state.log.filter(l => l.k !== btn.dataset.id);
+      flush(); renderView(); refreshSheet();
+    },
     sessionSheet: () => { const s = curS(); if (s) push({ sheet: 'session', sid: s.id, id: s.id }); },
     blockSheet: b => push({ sheet: 'block', sid: baseE().sid, id: b.dataset.id }),
     exSheet: b => push({ sheet: 'ex', sid: baseE().sid, id: b.dataset.id }),
@@ -993,7 +1119,7 @@
 
   /* ---------- Export / import ---------- */
   async function exportData() {
-    const data = JSON.stringify({ app: 'sporttoday', v: 1, sessions: state.sessions, settings: state.settings, log: state.log }, null, 2);
+    const data = JSON.stringify({ app: 'sporttoday', v: 1, sessions: state.sessions, settings: state.settings, log: state.log, start: state.start }, null, 2);
     const name = `sport-today-${dateKey()}.json`;
     try {
       const file = new File([data], name, { type: 'application/json' });
@@ -1016,7 +1142,8 @@
     try {
       const d = JSON.parse(await f.text());
       if (!d || !Array.isArray(d.sessions)) throw new Error('format');
-      state = normalize({ sessions: d.sessions, settings: { ...state.settings, ...(d.settings || {}) }, log: Array.isArray(d.log) ? d.log : state.log });
+      const keep = !Array.isArray(d.log);
+      state = normalize({ sessions: d.sessions, settings: { ...state.settings, ...(d.settings || {}) }, log: keep ? state.log : d.log, start: keep ? state.start : d.start });
       flush(); render(); toast('check');
     } catch (err) { toast('x', true); }
   });
@@ -1285,7 +1412,7 @@
     let sets = 0;
     for (let j = 0; j <= P.i; j++) { const x = P.steps[j]; if (x.kind === 'work' && x.side !== 2) sets++; }
     if (logIt) {
-      state.log.push({ id: P.sid, d: dateKey(), t: Math.round(ms / 1000) });
+      state.log.push({ k: uid(), id: P.sid, d: dateKey(), t: Math.round(ms / 1000), n: sn(P.s), c: P.s.color, ic: P.s.icon, m: false, at: Date.now() });
       if (state.log.length > 2000) state.log.splice(0, state.log.length - 2000);
       flush();
     }
@@ -1303,7 +1430,7 @@
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) return;
     if (P.on && !P.finished) { tick(); if (!P.paused) wakeOn(); }
-    else if (baseE().v === 'home' && !topE().sheet) renderView();
+    else if (baseE().v !== 'play' && !topE().sheet) renderView();
   });
 
   /* ============================================================
@@ -1314,6 +1441,9 @@
 
   try {
     if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
+      const hadCtl = !!navigator.serviceWorker.controller;
+      // Nouvelle version installée : on recharge (sauf en pleine séance).
+      navigator.serviceWorker.addEventListener('controllerchange', () => { if (hadCtl && !P.on) location.reload(); });
       addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); });
     }
   } catch (e) { /* pas de service worker ici */ }

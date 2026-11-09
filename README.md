@@ -38,6 +38,16 @@ Ouvrir une séance, puis toucher :
 
 Supprimer un bloc ou une séance demande deux appuis.
 
+## Suivi
+
+Bouton calendrier en haut de l'accueil (ou toucher la semaine) :
+- **vert ✓** : au moins une séance faite ce jour-là ;
+- **croix ✕** : rien de fait (à partir du premier jour d'utilisation) ;
+- série de jours d'affilée, nombre de jours faits / ratés et temps total du mois, liste des séances.
+
+Toucher un jour pour ajouter une séance oubliée ou supprimer une entrée.
+L'historique garde le nom et la couleur de chaque séance : modifier ou supprimer un programme ne change rien au suivi.
+
 ## Réglages
 
 Son, vibration, voix, durée de préparation, reps auto (secondes par rep ; « — » = validation manuelle), export / import JSON, retour au programme par défaut.

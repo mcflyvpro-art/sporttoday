@@ -1,5 +1,5 @@
 // Service worker : l'app marche hors-ligne. Changer VERSION à chaque mise à jour.
-const VERSION = 'sporttoday-v1';
+const VERSION = 'sporttoday-v2';
 const ASSETS = [
   './',
   'index.html',
@@ -18,7 +18,7 @@ const ASSETS = [
 ];
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(VERSION).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting()));
+  e.waitUntil(caches.open(VERSION).then(c => c.addAll(ASSETS.map(u => new Request(u, { cache: 'reload' })))).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', e => {

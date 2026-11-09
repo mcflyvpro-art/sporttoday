@@ -78,17 +78,29 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--c); outline
 .date { margin: 0; font-size: 16px; color: var(--muted); }
 .date b { color: var(--fg); font-weight: 600; text-transform: capitalize; }
 
-.week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.top-acts { display: flex; gap: 2px; }
+.week { width: 100%; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; text-align: center; border-radius: 18px; }
+.week:active { background: var(--surface); }
 .day { display: flex; flex-direction: column; align-items: center; gap: 9px; padding: 10px 0 12px; border-radius: 16px; }
 .day .dl { font-size: 13px; font-weight: 600; color: var(--muted); letter-spacing: .06em; }
 .day .dn { font: 600 19px/1 var(--f-num); color: var(--faint); font-variant-numeric: tabular-nums; }
 .day.today { background: var(--surface); }
 .day.today .dl, .day.today .dn { color: var(--fg); }
-.dots { display: flex; gap: 3px; height: 10px; align-items: center; }
+.dots { display: flex; gap: 3px; height: 20px; align-items: center; }
 .dots i { width: 10px; height: 10px; border-radius: 50%; box-shadow: inset 0 0 0 2px var(--c); }
 .dots i.on { background: var(--c); box-shadow: none; }
 .dots i.none { width: 4px; height: 4px; box-shadow: none; background: var(--line); }
 .day.past .dots i:not(.on) { opacity: .3; }
+
+/* Marques de suivi : vert = fait, croix = rien fait */
+.mark { width: 20px; height: 20px; flex: none; border-radius: 50%; display: grid; place-items: center; }
+.mark .i { width: 12px; height: 12px; stroke-width: 3.2; }
+.mark.ok { background: var(--done); color: var(--ink); }
+.mark.ko { background: color-mix(in srgb, var(--danger) 16%, transparent); color: var(--danger); }
+.mark.none { background: var(--surface-2); color: var(--muted); }
+.mark.big { width: 44px; height: 44px; }
+.mark.big .i { width: 22px; height: 22px; stroke-width: 2.8; }
+.mark.none.big .i { stroke-width: 2; }
 
 .hero {
   position: relative; overflow: hidden; display: flex; align-items: flex-end; gap: 14px;
@@ -132,6 +144,65 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--c); outline
   display: flex; align-items: center; justify-content: center; color: var(--muted);
 }
 .add-row:active, .add-block:active, .add-item:active { background: var(--surface); }
+
+/* ---------- Suivi ---------- */
+.hist { display: flex; flex-direction: column; gap: 16px; padding-bottom: calc(var(--sb) + 40px); }
+.hist .ed-top { margin-bottom: -6px; }
+.streak {
+  height: 38px; padding: 0 14px; border-radius: 19px; flex: none;
+  display: inline-flex; align-items: center; gap: 6px;
+  background: color-mix(in srgb, var(--prep) 14%, transparent); color: var(--prep);
+  font: 700 22px/1 var(--f-num); font-variant-numeric: tabular-nums;
+}
+.streak .i { width: 18px; height: 18px; }
+.month-nav { display: flex; align-items: center; justify-content: space-between; margin-inline: -10px; }
+.month-nav h2 { margin: 0; font: 700 28px/1 var(--f-num); text-transform: uppercase; }
+.month-nav h2 span { color: var(--muted); }
+.ib:disabled { opacity: .2; pointer-events: none; }
+.stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.stat { min-width: 0; display: flex; flex-direction: column; gap: 8px; padding: 14px 14px 12px; border-radius: 18px; background: var(--surface); }
+.stat-v { display: flex; align-items: center; gap: 7px; font: 700 28px/1 var(--f-num); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.stat-v .i { width: 18px; height: 18px; color: var(--muted); }
+.stat.st-ok .i { color: var(--done); stroke-width: 2.8; }
+.stat.st-ko .i { color: var(--danger); stroke-width: 2.8; }
+.stat-l { color: var(--muted); font-size: 12px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; }
+.cal { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+.cal-h { padding-bottom: 2px; text-align: center; color: var(--muted); font-size: 12px; font-weight: 600; letter-spacing: .06em; }
+.cd {
+  aspect-ratio: 1; max-width: 100%; min-width: 0; border-radius: 14px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  background: var(--surface); color: var(--muted);
+}
+.cd b { font: 600 19px/1 var(--f-num); font-variant-numeric: tabular-nums; }
+.cd .i { width: 12px; height: 12px; stroke-width: 3.2; }
+.cd.ok { background: var(--done); color: var(--ink); }
+.cd.ko { background: color-mix(in srgb, var(--danger) 14%, transparent); color: var(--danger); }
+.cd.fut { background: none; color: var(--faint); }
+.cd.today { outline: 2px solid var(--fg); outline-offset: 2px; color: var(--fg); }
+.cd.ok.today { color: var(--ink); }
+button.cd:active { transform: scale(.94); }
+
+.log { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.lg { width: 100%; display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); text-align: left; }
+.lg .badge { width: 38px; height: 38px; border-radius: 12px; }
+.lg .badge .i { width: 20px; height: 20px; }
+.lg-d { width: 52px; flex: none; color: var(--muted); font-size: 14px; font-weight: 600; }
+.lg-n { flex: 1; min-width: 0; font: 700 21px/1 var(--f-num); text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lg-t { flex: none; color: var(--muted); font: 600 18px/1 var(--f-num); font-variant-numeric: tabular-nums; }
+li.lg .ib { margin-right: -8px; }
+
+.day-head { display: flex; align-items: center; gap: 14px; padding: 6px 0 2px; }
+.day-head h2 { margin: 0; min-width: 0; font: 700 30px/1 var(--f-num); text-transform: uppercase; }
+.add-log { display: flex; flex-direction: column; gap: 6px; }
+.add-log button {
+  height: 56px; padding: 0 16px 0 9px; border-radius: 16px; background: var(--bg);
+  display: flex; align-items: center; gap: 12px; text-align: left;
+}
+.add-log .badge { width: 38px; height: 38px; border-radius: 12px; }
+.add-log .badge .i { width: 20px; height: 20px; }
+.al-n { flex: 1; min-width: 0; font: 700 20px/1 var(--f-num); text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.add-log button > .i:last-child { color: var(--muted); }
+.add-log button:active { background: var(--surface-2); }
 
 /* ---------- Editor ---------- */
 .editor { padding-bottom: calc(var(--sb) + 112px); }
