@@ -20,7 +20,7 @@ Après la première ouverture, l'app marche sans réseau.
 | Élément | Rôle |
 | --- | --- |
 | Anneau | temps restant (couleur de la séance = effort, bleu = repos, jaune = préparation / changement de côté) |
-| ✓ | exercice en répétitions terminé (toucher l'anneau marche aussi) |
+| ✓ | exercice en répétitions : l'écran affiche juste le nombre et attend que tu valides (toucher l'anneau marche aussi) |
 | ⏸ / ▶ | pause sur les exercices chronométrés |
 | ⏭ / ⏮ | passer / revenir |
 | +15″ | rallonger le repos en cours |
@@ -50,7 +50,7 @@ L'historique garde le nom et la couleur de chaque séance : modifier ou supprime
 
 ## Réglages
 
-Son, vibration, voix, durée de préparation, reps auto (secondes par rep ; « — » = validation manuelle), export / import JSON, retour au programme par défaut.
+Son, vibration, voix, durée de préparation, export / import JSON, retour au programme par défaut.
 
 ## Développement
 

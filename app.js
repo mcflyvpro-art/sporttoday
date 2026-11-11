@@ -188,7 +188,7 @@
       },
     ];
   }
-  const DEFAULT_SETTINGS = { sound: true, vibe: true, voice: false, prep: 5, pace: 0 };
+  const DEFAULT_SETTINGS = { sound: true, vibe: true, voice: false, prep: 5 };
 
   function normalize(d) {
     const out = {
@@ -198,6 +198,7 @@
       log: [],
       start: '',
     };
+    delete out.settings.pace; // ancien mode « reps auto » retiré : les reps se valident toujours à la main
     out.sessions = out.sessions.filter(s => s && typeof s === 'object').map(s => ({
       id: String(s.id || uid()),
       name: String(s.name ?? 'Séance'),
@@ -272,7 +273,7 @@
      Séance → suite d'étapes chronométrées
      ============================================================ */
   function buildSteps(s, st) {
-    const pace = st.pace | 0, prep = st.prep | 0;
+    const prep = st.prep | 0;
     const blocks = s.blocks.filter(b => b.items.length);
     const raw = [];
     blocks.forEach((b, bi) => {
@@ -287,7 +288,8 @@
               raw.push({ ...w, dur: it.value, side: 2 });
             } else raw.push({ ...w, dur: it.value });
           } else {
-            raw.push({ ...w, reps: it.value, dur: pace ? it.value * pace * (it.side ? 2 : 1) : 0 });
+            // Reps : pas de chrono, on attend la validation ✓.
+            raw.push({ ...w, reps: it.value, dur: 0 });
           }
           if (ii < b.items.length - 1 && b.restEx > 0) raw.push({ kind: 'rest', dur: b.restEx, b, bi, r, R });
         });
@@ -348,7 +350,6 @@
     go() { this.tone(1318, 0.38, 0, 'triangle', 0.34); },
     rest() { this.tone(784, 0.16); this.tone(523, 0.3, 0.16); },
     soft() { this.tone(660, 0.14, 0, 'sine', 0.2); },
-    rep() { this.tone(1500, 0.035, 0, 'square', 0.05); },
     done() { [523, 659, 784, 1047].forEach((f, i) => this.tone(f, 0.26, i * 0.13, 'triangle', 0.3)); },
   };
   const vib = p => { if (state.settings.vibe && navigator.vibrate) try { navigator.vibrate(p); } catch (e) { /* ignore */ } };
@@ -674,7 +675,6 @@
     restRound: { min: 0, max: 900, time: true },
     restAfter: { min: 0, max: 900, time: true },
     prep: { min: 0, max: 15, step: 1 },
-    pace: { min: 0, max: 6, step: 1 },
   };
   const spec = (k, o) => k === 'value'
     ? (o.type === 'time' ? { min: 5, max: 3600, time: true } : { min: 1, max: 500, step: 1 })
@@ -690,7 +690,6 @@
     if (k === 'value') return o.type === 'time' ? fmtDur(v) : String(v);
     if (k === 'rounds') return '×' + v;
     if (k === 'prep') return v ? v + '″' : '0';
-    if (k === 'pace') return v ? v + '″' : '—';
     return v ? fmtDur(v) : '0';
   }
   const stepperHTML = (k, o, cls = '') => `<div class="stepper ${cls}">
@@ -773,7 +772,6 @@
           ${tglHTML('vibrate', 'Vibration', 'vibe', st.vibe)}
           ${tglHTML('voice', 'Voix', 'voice', st.voice)}
           ${fieldHTML('timer', 'Préparation', 'prep', st)}
-          ${fieldHTML('hash', 'Reps auto', 'pace', st)}
         </div>
         <div class="data-row">
           <button data-a="exportData">${ic('download')}<span>Export</span></button>
@@ -1172,7 +1170,7 @@
       on: true, finished: false, sid, s, color: s.color, steps, blocks,
       segTot: blocks.map((_, k) => steps.filter(x => x.bi === k).length),
       i: 0, t0: now, ps: now, paused: false, pa: 0, pausedTotal: 0,
-      lastBeep: null, lastRep: 0, cache: {}, el: null,
+      lastBeep: null, cache: {}, el: null,
     });
     push({ v: 'play', sid });
     cueEnter(P.steps[0], true);
@@ -1271,7 +1269,8 @@
       ? Array.from({ length: ref.R }, (_, k) => `<i class="${k < ref.r ? 'done' : k === ref.r ? 'cur' : ''}"></i>`).join('')
       : '';
 
-    R.querySelector('.pl-unit').textContent = st.kind === 'work' && st.reps ? (st.it.side && !st.dur ? 'par côté' : 'reps') : '';
+    // Reps : juste le nombre (⇄ si c'est par côté).
+    R.querySelector('.pl-unit').innerHTML = manual && st.it.side ? ic('arrows') : '';
 
     const ni = nextPreview(refI);
     R.querySelector('.pl-next').innerHTML = ni >= 0
@@ -1279,7 +1278,7 @@
       : ic('flag');
 
     const main = R.querySelector('.pl-main');
-    main.innerHTML = manual ? ic('check') : P.paused ? ic('play') : ic('pause');
+    main.innerHTML = manual ? ic('check') : P.paused ? ic('play', 'ply') : ic('pause');
     main.setAttribute('aria-label', manual ? 'Fait' : P.paused ? 'Reprendre' : 'Pause');
 
     R.querySelectorAll('.segs i').forEach((seg, k) => {
@@ -1300,9 +1299,7 @@
     if (st.dur) {
       const durMs = st.dur * 1000, rem = Math.max(0, durMs - el);
       frac = rem / durMs;
-      num = st.kind === 'work' && st.reps
-        ? String(Math.ceil(st.reps * (st.it.side ? 2 : 1) * rem / durMs))
-        : fmtClock(rem / 1000);
+      num = fmtClock(rem / 1000);
     } else num = String(st.reps);
     P.prg.style.strokeDashoffset = (RING_C * (1 - frac)).toFixed(2);
     if (num !== P.cache.num) {
@@ -1325,7 +1322,7 @@
         if (P.i >= P.steps.length - 1) { finish(true); return; }
         P.i++;
         P.ps = now - over;
-        P.lastBeep = null; P.lastRep = 0;
+        P.lastBeep = null;
         st = P.steps[P.i];
         el = over;
         if (!st.dur || el < st.dur * 1000) { cueEnter(st, over < 1500); paintPhase(); }
@@ -1333,10 +1330,6 @@
       if (st.dur) {
         const rem = Math.ceil((st.dur * 1000 - el) / 1000);
         if (rem >= 1 && rem <= 3 && rem !== P.lastBeep) { P.lastBeep = rem; Snd.tick(); vib(35); }
-        if (st.kind === 'work' && st.reps) {
-          const rep = Math.floor(el / (st.dur * 1000 / (st.reps * (st.it.side ? 2 : 1))));
-          if (rep !== P.lastRep) { P.lastRep = rep; if (rep > 0 && rem > 3) Snd.rep(); }
-        }
       }
     }
     paintTick(now);
@@ -1374,7 +1367,7 @@
     const now = Date.now();
     P.ps = now;
     if (P.paused) P.pa = now;
-    P.lastBeep = null; P.lastRep = 0;
+    P.lastBeep = null;
     cueEnter(P.steps[P.i], !P.paused);
     paintPhase();
     paintTick(now);

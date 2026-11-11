@@ -1,5 +1,5 @@
 // Service worker : l'app marche hors-ligne. Changer VERSION à chaque mise à jour.
-const VERSION = 'sporttoday-v3';
+const VERSION = 'sporttoday-v4';
 const ASSETS = [
   './',
   'index.html',
